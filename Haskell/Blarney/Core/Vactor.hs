@@ -113,6 +113,9 @@ module Blarney.Core.Vactor (
 , Blarney.Core.Vactor.transpose
 , Blarney.Core.Vactor.transposeLV
 , Blarney.Core.Vactor.transposeVL
+--
+, bitNToVecBit
+, vecBitToBitN
 -- TODOs
 -- toChunks
 -- shiftInAt0, shiftInAtN, shiftOutFrom0, shiftOutFromN
@@ -535,3 +538,9 @@ transposeVL = L.map fromList . transpose' (valueOf @n) . toList
 
 transposeLV :: forall n a. KnownNat n => [Vac n a] -> Vac n [a]
 transposeLV = fromList . transpose' (valueOf @n) . L.map toList
+
+bitNToVecBit :: KnownNat n => Bit n -> Vac n (Bit 1)
+bitNToVecBit = fromList . toBitList
+
+vecBitToBitN :: KnownNat n => Vac n (Bit 1) -> Bit n
+vecBitToBitN = fromBitList . toList
