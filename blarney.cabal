@@ -50,7 +50,7 @@ library
     Blarney.TaggedUnion
     Blarney.TypeFamilies
     Blarney.Vector
-    Blarney.Core.Vactor
+    Blarney.Retime
   other-modules:
     Blarney.Backend
     Blarney.Backend.SMT
@@ -67,9 +67,6 @@ library
     Blarney.Core.Flatten
     Blarney.Core.FShow
     Blarney.Core.IfThenElse
-    Blarney.Core.Retime
-    Blarney.Core.TapeFamilies
-    Blarney.Core.Aption
     Blarney.Core.Interface
     Blarney.Core.JList
     Blarney.Core.Lookup

@@ -25,7 +25,6 @@ module Blarney.Core (
 , module Blarney.Core.Interface
 , module Blarney.Core.IfThenElse
 , module Blarney.Core.ClockReset
-, module Blarney.Core.Retime
 ) where
 
 import Blarney.Core.Bit
@@ -40,4 +39,3 @@ import Blarney.Core.Prelude
 import Blarney.Core.Interface
 import Blarney.Core.IfThenElse
 import Blarney.Core.ClockReset
-import Blarney.Core.Retime

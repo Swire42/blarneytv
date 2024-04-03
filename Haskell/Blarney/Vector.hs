@@ -17,6 +17,9 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
+{-# OPTIONS_GHC -fplugin GHC.TypeLits.Normalise       #-}
+{-# OPTIONS_GHC -fplugin GHC.TypeLits.Extra.Solver    #-}
+{-# OPTIONS_GHC -fplugin GHC.TypeLits.KnownNat.Solver #-}
 
 {-|
 Module      : Blarney.Vector
@@ -36,6 +39,8 @@ module Blarney.Vector (
 , Blarney.Vector.newVec
 , Blarney.Vector.genVec
 , Blarney.Vector.fromList
+, Blarney.Vector.castShift
+, Blarney.Vector.lazyShape
 , Blarney.Vector.replicate
 , Blarney.Vector.replicateM
 , Blarney.Vector.genWith
@@ -104,6 +109,13 @@ module Blarney.Vector (
 , Blarney.Vector.sscanr
 , Blarney.Vector.scanl
 , Blarney.Vector.sscanl
+--
+, Blarney.Vector.transpose
+, Blarney.Vector.transposeLV
+, Blarney.Vector.transposeVL
+--
+, bitNToVecBit
+, vecBitToBitN
 -- TODOs
 -- toChunks
 -- shiftInAt0, shiftInAtN, shiftOutFrom0, shiftOutFromN
@@ -114,10 +126,21 @@ module Blarney.Vector (
 ) where
 
 -- Blarney imports
-import Blarney
-import Blarney.Option
 import Blarney.Core.BV
+import Blarney.Core.FShow
+import Blarney.Core.Bits
+import Blarney.Core.Bit
+import Blarney.Core.Interface
+import Blarney.Option
 import Blarney.TypeFamilies
+import Blarney.Core.Prelude
+import Blarney.Core.Lookup
+import Blarney.Core.IfThenElse
+
+import Prelude
+import GHC.TypeLits
+import GHC.Generics
+import Control.Monad
 
 import qualified Data.List as L
 import qualified Data.Type.Bool as B
@@ -176,13 +199,21 @@ fromList xs
   | otherwise = error ("Blarney.Vector.fromList: " ++
       "list size does not match vector size")
 
+-- | Helper casting function for turning (n+1) into (1 <= m) => (m)
+castShift :: forall n a. (1 <= n) => (Vec ((n-1)+1) a -> Vec ((n-1)+1) a) -> (Vec n a -> Vec n a)
+castShift f = f
+
+-- | Identity, but makes the shape lazy
+lazyShape :: KnownNat n => Vec n a -> Vec n a
+lazyShape = Blarney.Vector.take
+
 -- | Generate a 'Vec' with each element initialized to the given value
 replicate :: forall n a. KnownNat n => a -> Vec n a
 replicate x = Vec (L.replicate (valueOf @n) x)
 
 replicateM :: forall n a m. (Monad m, KnownNat n) => m a -> m (Vec n a)
 replicateM x = do
-  xs <- Blarney.replicateM (valueOf @n) x
+  xs <- Control.Monad.replicateM (valueOf @n) x
   return $ Vec xs
 
 -- | Generate a 'Vec' from the given function 'f' applied to integers from '0'
@@ -193,7 +224,7 @@ genWith f = Vec (L.take (valueOf @n) $ L.map f [0..])
 genWithM :: forall n a m. (Monad m, KnownNat n) =>
               (Integer -> m a) -> m (Vec n a)
 genWithM f = do
-  xs <- Blarney.mapM f [0 .. toInteger (valueOf @n - 1)]
+  xs <- Control.Monad.mapM f [0 .. toInteger (valueOf @n - 1)]
   return $ Vec xs
 
 -- | Construct a new 'Vec' from a new element and an exisiting 'Vec'. The new
@@ -240,21 +271,25 @@ last :: (1 <= n) => Vec n a -> a
 last = L.last . toList
 
 -- | Return the given 'Vec' with its head element removed
-tail :: Vec (n+1) a -> Vec (n) a
+tail :: Vec (n+1) a -> Vec n a
 tail xs = Vec (L.tail $ toList xs)
 
--- | Return the given 'Vec' with its last element removed
-init :: Vec (n+1) a -> Vec (n) a
-init xs = Vec (L.init $ toList xs)
+-- | Return the given 'Vec' with its last element removed (lazy in shape)
+init :: forall n a. KnownNat n => Vec (n+1) a -> Vec n a
+init = Blarney.Vector.take
 
--- | Return the 'Vec' composed of the first 'm' elements of the given 'Vec'
+-- | Return the 'Vec' composed of the first 'm' elements of the given 'Vec' (lazy in shape)
 take :: forall n m a. (KnownNat m, m <= n) => Vec n a -> Vec m a
-take xs = Vec (L.take (valueOf @m) (toList xs))
+take xs = Vec (take' (valueOf @m) (toList xs))
+  where
+    -- L.take, but lazy on the shape
+    take' 0 _       = []
+    take' n ~(x:xs) = x : take' (n-1) xs
 
 -- | Return the 'Vec' composed of the last 'm' elements of the given 'Vec'
-drop :: forall n m a. (KnownNat n, m <= n) => Vec n a -> Vec m a
-drop xs = Vec (L.drop (valueOf @n) (toList xs))
-takeTail :: forall n m a. (KnownNat n, m <= n) => Vec n a -> Vec m a
+drop :: forall n m a. (KnownNat n, KnownNat m, m <= n) => Vec n a -> Vec m a
+drop xs = Vec (L.drop (valueOf @n - valueOf @m) (toList xs))
+takeTail :: forall n m a. (KnownNat n, KnownNat m, m <= n) => Vec n a -> Vec m a
 takeTail = Blarney.Vector.drop
 
 -- | Return the 'Vec' composed of the 'm' elements of the given 'Vec' starting
@@ -268,15 +303,14 @@ takeAt idx xs
 
 -- | Return a 'Vec' image of the given 'Vec' with its elements rotated left by
 --   one, with the head element becoming the last element
-rotateL :: Vec n a -> Vec n a
+rotateL :: (1 <= n) => Vec n a -> Vec n a
 rotateL xs = Vec (L.tail xss ++ [L.head xss])
              where xss = toList xs
 
 -- | Return a 'Vec' image of the given 'Vec' with its elements rotated right by
 --   one, with the last element becoming the head element
-rotateR :: Vec n a -> Vec n a
-rotateR xs = Vec (L.last xss : L.init xss)
-             where xss = toList xs
+rotateR :: (KnownNat n, 1 <= n) => Vec n a -> Vec n a
+rotateR = castShift $ \xs -> Blarney.Vector.cons (Blarney.Vector.last xs) (Blarney.Vector.init xs)
 
 -- Internal function: rotate vector left/right
 rotateBy :: Bits a => Bool -> Bit m -> Vec n a -> Vec n a
@@ -380,12 +414,12 @@ map f xs = Vec $ L.map f (toList xs)
 
 mapM :: Monad m => (a -> m b) -> Vec n a -> m (Vec n b)
 mapM f xs = do
-  xs <- Blarney.mapM f (toList xs)
+  xs <- Control.Monad.mapM f (toList xs)
   return $ Vec xs
 
 mapM_ :: Monad m => (a -> m b) -> Vec n a -> m ()
 mapM_ f xs = do
-  _ <- Blarney.mapM f (toList xs)
+  _ <- Control.Monad.mapM f (toList xs)
   return ()
 
 -- | Return a 'Vec', result of mapping a function over the two input 'Vec's
@@ -394,12 +428,12 @@ zipWith f xs ys = Vec $ L.map (uncurry f) (L.zip (toList xs) (toList ys))
 
 zipWithM :: Monad m => (a -> b -> m c) -> Vec n a -> Vec n b -> m (Vec n c)
 zipWithM f xs ys = do
-  zs <- Blarney.mapM (uncurry f) (L.zip (toList xs) (toList ys))
+  zs <- Control.Monad.mapM (uncurry f) (L.zip (toList xs) (toList ys))
   return $ Vec zs
 
 zipWithM_ :: Monad m => (a -> b -> m c) -> Vec n a -> Vec n b -> m ()
 zipWithM_ f xs ys = do
-  _ <- Blarney.mapM (uncurry f) (L.zip (toList xs) (toList ys))
+  _ <- Control.Monad.mapM (uncurry f) (L.zip (toList xs) (toList ys))
   return ()
 
 -- | Return a 'Vec', result of mapping a function over the two input 'Vec's,
@@ -415,7 +449,7 @@ zipWith3 f xs ys zs = Vec $ L.map (\(x, y, z) -> f x y z)
 zipWith3M :: Monad m => (a -> b -> c -> m d) -> Vec n a -> Vec n b -> Vec n c
                         -> m (Vec n d)
 zipWith3M f xs ys zs = do
-  res <- Blarney.mapM (\(x, y, z) -> f x y z)
+  res <- Control.Monad.mapM (\(x, y, z) -> f x y z)
                       (L.zip3 (toList xs) (toList ys) (toList zs))
   return $ Vec res
 
@@ -428,11 +462,11 @@ zipWithAny3 f xs ys zs = Vec $ L.map (\(x, y, z) -> f x y z)
 
 -- | Tree reduction for vectors
 tree :: (a -> a -> a) -> a -> Vec n a -> a
-tree f z = Blarney.tree f z . toList
+tree f z = Blarney.Core.Prelude.tree f z . toList
 
 -- | Tree reduction for nonempty vectors
 tree1 :: (a -> a -> a) -> Vec n a -> a
-tree1 f = Blarney.tree1 f . toList
+tree1 f = Blarney.Core.Prelude.tree1 f . toList
 
 -- | Reduce a 'Vec' using the given function, starting with a provided seed and
 --   the last element of the 'Vec'
@@ -456,7 +490,7 @@ foldl1 f xs = L.foldl1 f (toList xs)
 
 -- | Reduce a 'Vec' using the given function in a tree structure
 fold :: 1 <= n => (a -> a -> a) -> Vec n a -> a
-fold f xs = Blarney.tree1 f (toList xs)
+fold f xs = Blarney.Core.Prelude.tree1 f (toList xs)
 
 -- | Apply a function over a 'Vec' starting with the given seed and the last
 --   element, yielding a 'Vec' one element bigger than the provided one
@@ -491,3 +525,22 @@ instance Lookup (Vec m a) Int a where
 -- |Index a vector using an 'Integer'
 instance Lookup (Vec m a) Integer a where
   v ! i = toList v ! fromIntegral i
+
+transpose' :: forall a. Int -> [[a]] -> [[a]]
+transpose' n [] = L.replicate n []
+transpose' n as = L.transpose as
+
+transpose :: forall m n a. (KnownNat n, KnownNat m) => Vec m (Vec n a) -> Vec n (Vec m a)
+transpose = fromList . L.map fromList . transpose' (valueOf @n) . L.map toList . toList
+
+transposeVL :: forall n a. KnownNat n => Vec n [a] -> [Vec n a]
+transposeVL = L.map fromList . transpose' (valueOf @n) . toList
+
+transposeLV :: forall n a. KnownNat n => [Vec n a] -> Vec n [a]
+transposeLV = fromList . transpose' (valueOf @n) . L.map toList
+
+bitNToVecBit :: KnownNat n => Bit n -> Vec n (Bit 1)
+bitNToVecBit = fromList . toBitList
+
+vecBitToBitN :: KnownNat n => Vec n (Bit 1) -> Bit n
+vecBitToBitN = fromBitList . toList
