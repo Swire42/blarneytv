@@ -14,6 +14,7 @@ instead.
 -}
 module Blarney.Core (
   module Blarney.Core.Bit
+, module Blarney.Core.BV
 , module Blarney.Core.RAM
 , module Blarney.Core.Bits
 , module Blarney.Core.Utils
@@ -24,9 +25,11 @@ module Blarney.Core (
 , module Blarney.Core.Interface
 , module Blarney.Core.IfThenElse
 , module Blarney.Core.ClockReset
+, module Blarney.Core.Retime
 ) where
 
 import Blarney.Core.Bit
+import Blarney.Core.BV
 import Blarney.Core.Bits
 import Blarney.Core.RAM
 import Blarney.Core.Utils
@@ -37,3 +40,4 @@ import Blarney.Core.Prelude
 import Blarney.Core.Interface
 import Blarney.Core.IfThenElse
 import Blarney.Core.ClockReset
+import Blarney.Core.Retime

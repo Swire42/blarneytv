@@ -66,6 +66,7 @@ library
     Blarney.Core.Flatten
     Blarney.Core.FShow
     Blarney.Core.IfThenElse
+    Blarney.Core.Retime
     Blarney.Core.Interface
     Blarney.Core.JList
     Blarney.Core.Lookup

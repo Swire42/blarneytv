@@ -48,6 +48,7 @@ import GHC.Generics
 -- capturing the bit-vector width.  All bit vectors
 -- are members of the 'Num' and 'Cmp' classes.
 newtype Bit (n :: Nat) = FromBV { toBV :: BV }
+  deriving (Show)
 
 -- |Determine width of bit-vector from type
 widthOf :: KnownNat n => Bit n -> Int

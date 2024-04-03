@@ -114,6 +114,7 @@ data BV = BV {
                -- | Unique 'BV' identifier
              , bvInstId    :: InstId
              }
+  deriving (Show)
 
 -- | Add a name hint to the 'BV'
 addBVNameHint :: BV -> NameHint -> BV
