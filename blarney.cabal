@@ -50,6 +50,7 @@ library
     Blarney.TaggedUnion
     Blarney.TypeFamilies
     Blarney.Vector
+    Blarney.Core.Vactor
   other-modules:
     Blarney.Backend
     Blarney.Backend.SMT
@@ -67,6 +68,8 @@ library
     Blarney.Core.FShow
     Blarney.Core.IfThenElse
     Blarney.Core.Retime
+    Blarney.Core.TapeFamilies
+    Blarney.Core.Aption
     Blarney.Core.Interface
     Blarney.Core.JList
     Blarney.Core.Lookup
@@ -101,6 +104,10 @@ library
     , pretty
     , process
     , transformers
+    , if-instance
+    , ghc-typelits-natnormalise
+    , ghc-typelits-extra
+    , ghc-typelits-knownnat
   if flag(enable-namer-plugin)
     build-depends:
       blarney-plugins-namer
