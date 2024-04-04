@@ -12,7 +12,7 @@ This module provides the time transformation from Lava.
 This transformation allows computing several cycles of a circuit in a single
 cycle.
 -}
-module Blarney.Retime (unroll, unroll') where
+module Blarney.Retime (unroll, unroll', slowdown) where
 
 import Blarney.Core.BV
 import Blarney.Core.Bit
@@ -112,3 +112,28 @@ ifZero a b = case (cmpNat @0 @n Proxy Proxy, cmpNat @1 @n Proxy Proxy) of
     (LTI, EQI) -> b
     (LTI, LTI) -> b
     _ -> undefined
+
+slowdown :: (Bits a, Bits b, KnownNat (SizeOf a)) => Int -> (a -> b) -> (a -> b)
+slowdown n circ inp =
+    unpack
+  . FromBV
+  . (IntMap.! rootID)
+  . fix
+  $ aux rootBV IntSet.empty
+ where
+  rootBV :: BV = toBV . pack $ circ inp
+  rootID = bvInstId rootBV
+
+  aux :: BV -> IntSet -> IntMap BV -> IntMap BV
+  aux BV{bvPrim=prim, bvInputs=inputs, bvInstId=instId} iset imap =
+    if instId `IntSet.member` iset
+      then IntMap.empty
+      else
+        IntMap.unions $ IntMap.singleton instId (
+          case prim of
+            Register initVal w ->
+              let [input] = inputs in
+              let slowedInput = imap IntMap.! bvInstId input in
+              iterate (\x -> makePrim1 (Register initVal w) [x]) slowedInput !! n
+            _ -> makePrim1 prim $ map ((imap IntMap.!) . bvInstId) inputs
+        ) : map (\x -> aux x (IntSet.insert instId iset) imap) inputs
