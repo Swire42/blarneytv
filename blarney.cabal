@@ -50,6 +50,7 @@ library
     Blarney.TaggedUnion
     Blarney.TypeFamilies
     Blarney.Vector
+    Blarney.SList
     Blarney.Retime
   other-modules:
     Blarney.Backend
@@ -101,8 +102,9 @@ library
     , pretty
     , process
     , transformers
-    , if-instance
+    , sized-vector
     , ghc-typelits-natnormalise
+    , ghc-typelits-presburger
     , ghc-typelits-extra
     , ghc-typelits-knownnat
   if flag(enable-namer-plugin)

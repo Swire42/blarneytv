@@ -1,6 +1,6 @@
 {-# LANGUAGE NoRebindableSyntax  #-}
-{-# OPTIONS_GHC -fplugin=IfSat.Plugin #-}
 {-# OPTIONS_GHC -fplugin GHC.TypeLits.Normalise       #-}
+{-# OPTIONS_GHC -fplugin GHC.TypeLits.Presburger      #-}
 {-# OPTIONS_GHC -fplugin GHC.TypeLits.Extra.Solver    #-}
 {-# OPTIONS_GHC -fplugin GHC.TypeLits.KnownNat.Solver #-}
 
@@ -12,19 +12,17 @@ This module provides the time transformation from Lava.
 This transformation allows computing several cycles of a circuit in a single
 cycle.
 -}
-module Blarney.Retime (unroll, unroll', slowdown) where
+module Blarney.Retime (unroll, unroll', unroll'', slowdown) where
 
 import Blarney.Core.BV
 import Blarney.Core.Bit
 import Blarney.Core.Bits
 import qualified Blarney.Vector as V
+import qualified Blarney.SList as SL
 
 -- Utils
 import Blarney.Core.Prim
 import Blarney.Core.Utils
-
--- IfSat
-import Data.Constraint.If
 
 -- Standard imports
 import Prelude
@@ -105,6 +103,27 @@ unroll' circ inps = ifZero @n V.nil (V.map (unpack . FromBV) . (IntMap.! rootID)
     where
       updateHead :: forall a n. (KnownNat n, 1 <= n) => (a -> a) -> V.Vec n a -> V.Vec n a
       updateHead f = V.castShift $ \x -> V.cons (f $ V.head x) (V.tail x)
+
+unroll'' :: forall a b n. (Bits a, Bits b, KnownNat (SizeOf a), KnownNat n) => (a -> b) -> (SL.SList n a -> SL.SList n b)
+unroll'' circ inps = ifZero @n SL.Nil (SL.map (unpack . FromBV) . (IntMap.! rootID) . fix $ aux rootBV IntSet.empty)
+ where
+  symb = "#retime#"
+  rootBV = toBV . pack . circ . unpack $ inputPin symb
+  rootID = bvInstId rootBV
+
+  aux :: (1 <= n) => BV -> IntSet -> IntMap (SL.SList n BV) -> IntMap (SL.SList n BV)
+  aux BV{bvPrim=prim, bvInputs=inputs, bvInstId=instId} iset imap =
+    if instId `IntSet.member` iset
+      then IntMap.empty
+      else
+        IntMap.unions $ IntMap.singleton instId (
+          case prim of
+            Input w s | s == symb -> SL.map (toBV . pack) inps
+            Register initVal w ->
+              let [input] = inputs in
+              SL.update @0 (makePrim1 (Register initVal w) . L.singleton) . SL.rotateR $ imap IntMap.! bvInstId input
+            _ -> SL.map (makePrim1 prim) . SL.transposeLS $ map ((imap IntMap.!) . bvInstId) inputs
+        ) : map (\x -> aux x (IntSet.insert instId iset) imap) inputs
 
 ifZero :: forall n a. KnownNat n => (n ~ 0 => a) -> (1 <= n => a) -> a
 ifZero a b = case (cmpNat @0 @n Proxy Proxy, cmpNat @1 @n Proxy Proxy) of
