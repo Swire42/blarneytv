@@ -1,30 +1,12 @@
 {-# LANGUAGE GADTs                 #-}
 {-# LANGUAGE DataKinds             #-}
 {-# LANGUAGE AllowAmbiguousTypes   #-}
-{-# LANGUAGE NoRebindableSyntax  #-}
+{-# LANGUAGE UndecidableInstances  #-}
+{-# LANGUAGE NoRebindableSyntax    #-}
 {-# OPTIONS_GHC -fplugin GHC.TypeLits.Normalise       #-}
 {-# OPTIONS_GHC -fplugin GHC.TypeLits.Presburger      #-}
 {-# OPTIONS_GHC -fplugin GHC.TypeLits.Extra.Solver    #-}
 {-# OPTIONS_GHC -fplugin GHC.TypeLits.KnownNat.Solver #-}
-
-{-# LANGUAGE GADTs                 #-}
-{-# LANGUAGE DataKinds             #-}
-{-# LANGUAGE Rank2Types            #-}
-{-# LANGUAGE TypeFamilies          #-}
-{-# LANGUAGE NoStarIsType          #-}
-{-# LANGUAGE TypeOperators         #-}
-{-# LANGUAGE DeriveGeneric         #-}
-{-# LANGUAGE DeriveAnyClass        #-}
-{-# LANGUAGE KindSignatures        #-}
-{-# LANGUAGE RebindableSyntax      #-}
-{-# LANGUAGE FlexibleContexts      #-}
-{-# LANGUAGE TypeApplications      #-}
-{-# LANGUAGE FlexibleInstances     #-}
-{-# LANGUAGE AllowAmbiguousTypes   #-}
-{-# LANGUAGE ScopedTypeVariables   #-}
-{-# LANGUAGE UndecidableInstances  #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE PartialTypeSignatures #-}
 
 {-|
 Module      : Blarney.SVec
