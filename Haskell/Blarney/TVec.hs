@@ -62,45 +62,6 @@ toList = SList.toList . toSList
 fromList :: KnownNat n => [a] -> TVec n a
 fromList = fromSList . SList.fromList
 
-instance (KnownNat n, Bits a) => Bits (TVec n a) where
-  type SizeOf (TVec n a) = n * SizeOf a
-
-  sizeOf :: TVec n a -> Int
-  sizeOf xs = valueOf @n * sizeOf (error "sizeOf: _|_ " :: a)
-
-  pack :: TVec n a -> Bit (SizeOf (TVec n a))
-  pack x
-    | null xs = FromBV $ constBV 0 0
-    | otherwise = FromBV $ L.foldr1 concatBV $
-                    fmap toBV $ fmap pack $ L.reverse xs
-    where xs = toList x
-
-  unpack :: Bit (SizeOf (TVec n a)) -> TVec n a
-  unpack x = fromList xs
-    where
-      len = valueOf @n
-      xs  = [ let bits = unsafeSlice ((w*i)-1, w*(i-1)) x
-                  elem = unpack bits
-                  w    = sizeOf elem
-              in elem
-            | i <- [1..len] ]
-
-  nameBits :: String -> TVec n a -> TVec n a
-  nameBits nm = fromSList . SList.map (\(i, b) -> nameBits (nm ++ "_vec_" ++ show i) b) . SList.zip (SList.iterate (+1) 0) . toSList
-
-instance (KnownNat n, Interface a) => Interface (TVec n a) where
-  toIfc vec = (tm, ty)
-    where
-      tm = encode (valueOf @n) (toList vec)
-      ty = L.foldr IfcTypeProduct IfcTypeUnit (L.replicate (valueOf @n) t)
-      t = IfcTypeField portEmpty (toIfcType (undefined :: a))
-      encode 0 _ = IfcTermUnit
-      encode i ~(x:xs) = IfcTermProduct (toIfcTerm x) (encode (i-1) xs)
-  fromIfc term = fromList $ decode (valueOf @n) term
-    where
-      decode 0 _ = []
-      decode i ~(IfcTermProduct x0 x1) = fromIfcTerm x0 : decode (i-1) x1
-
 lazyShape :: forall n a. KnownNat n => TVec n a -> TVec n a
 lazyShape = fromSList . SList.lazyShape . toSList
 
