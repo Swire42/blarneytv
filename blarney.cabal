@@ -49,8 +49,8 @@ library
     Blarney.Stream
     Blarney.TaggedUnion
     Blarney.TypeFamilies
-    Blarney.Vector
     Blarney.SList
+    Blarney.SVec
     Blarney.Retime
   other-modules:
     Blarney.Backend

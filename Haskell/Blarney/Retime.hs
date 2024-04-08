@@ -12,13 +12,13 @@ This module provides the time transformation from Lava.
 This transformation allows computing several cycles of a circuit in a single
 cycle.
 -}
-module Blarney.Retime (unroll, unroll', unroll'', slowdown) where
+module Blarney.Retime (unrollList, unrollSList, unrollS, slowdown) where
 
 import Blarney.Core.BV
 import Blarney.Core.Bit
 import Blarney.Core.Bits
-import qualified Blarney.Vector as V
-import qualified Blarney.SList as SL
+import qualified Blarney.SList as Slist
+import qualified Blarney.SVec as SVec
 
 -- Utils
 import Blarney.Core.Prim
@@ -43,9 +43,9 @@ import qualified Data.IntSet as IntSet
 -- The compression ratio is determined by the size of the input list
 -- cf Lava's timeTransform
 
-unroll :: (Bits a, Bits b, KnownNat (SizeOf a)) => (a -> b) -> ([a] -> [b])
-unroll circ [] = []
-unroll circ inps@(inp:_) =
+unrollList :: (Bits a, Bits b, KnownNat (SizeOf a)) => (a -> b) -> ([a] -> [b])
+unrollList circ [] = []
+unrollList circ inps@(inp:_) =
     map (unpack . FromBV)
   . (IntMap.! rootID)
   . fix
@@ -80,50 +80,29 @@ unroll circ inps@(inp:_) =
       transpose' n [] = replicate n []
       transpose' n as = L.transpose as
 
-unroll' :: forall a b n. (Bits a, Bits b, KnownNat (SizeOf a), KnownNat n) => (a -> b) -> (V.Vec n a -> V.Vec n b)
-unroll' circ inps = ifZero @n V.nil (V.map (unpack . FromBV) . (IntMap.! rootID) . fix $ aux rootBV IntSet.empty)
+unrollSList :: forall a b n. (Bits a, Bits b, KnownNat (SizeOf a), KnownNat n) => (a -> b) -> (Slist.SList n a -> Slist.SList n b)
+unrollSList circ inps = ifZero @n Slist.Nil (Slist.map (unpack . FromBV) . (IntMap.! rootID) . fix $ aux rootBV IntSet.empty)
  where
   symb = "#retime#"
   rootBV = toBV . pack . circ . unpack $ inputPin symb
   rootID = bvInstId rootBV
 
-  aux :: (1 <= n) => BV -> IntSet -> IntMap (V.Vec n BV) -> IntMap (V.Vec n BV)
+  aux :: (1 <= n) => BV -> IntSet -> IntMap (Slist.SList n BV) -> IntMap (Slist.SList n BV)
   aux BV{bvPrim=prim, bvInputs=inputs, bvInstId=instId} iset imap =
     if instId `IntSet.member` iset
       then IntMap.empty
       else
         IntMap.unions $ IntMap.singleton instId (
           case prim of
-            Input w s | s == symb -> V.map (toBV . pack) inps
+            Input w s | s == symb -> Slist.map (toBV . pack) inps
             Register initVal w ->
               let [input] = inputs in
-              updateHead (makePrim1 (Register initVal w) . L.singleton) . V.rotateR $ imap IntMap.! bvInstId input
-            _ -> V.map (makePrim1 prim) . V.transposeLV $ map ((imap IntMap.!) . bvInstId) inputs
+              Slist.update @0 (makePrim1 (Register initVal w) . L.singleton) . Slist.rotateR $ imap IntMap.! bvInstId input
+            _ -> Slist.map (makePrim1 prim) . Slist.transposeLS $ map ((imap IntMap.!) . bvInstId) inputs
         ) : map (\x -> aux x (IntSet.insert instId iset) imap) inputs
-    where
-      updateHead :: forall a n. (KnownNat n, 1 <= n) => (a -> a) -> V.Vec n a -> V.Vec n a
-      updateHead f = V.castShift $ \x -> V.cons (f $ V.head x) (V.tail x)
 
-unroll'' :: forall a b n. (Bits a, Bits b, KnownNat (SizeOf a), KnownNat n) => (a -> b) -> (SL.SList n a -> SL.SList n b)
-unroll'' circ inps = ifZero @n SL.Nil (SL.map (unpack . FromBV) . (IntMap.! rootID) . fix $ aux rootBV IntSet.empty)
- where
-  symb = "#retime#"
-  rootBV = toBV . pack . circ . unpack $ inputPin symb
-  rootID = bvInstId rootBV
-
-  aux :: (1 <= n) => BV -> IntSet -> IntMap (SL.SList n BV) -> IntMap (SL.SList n BV)
-  aux BV{bvPrim=prim, bvInputs=inputs, bvInstId=instId} iset imap =
-    if instId `IntSet.member` iset
-      then IntMap.empty
-      else
-        IntMap.unions $ IntMap.singleton instId (
-          case prim of
-            Input w s | s == symb -> SL.map (toBV . pack) inps
-            Register initVal w ->
-              let [input] = inputs in
-              SL.update @0 (makePrim1 (Register initVal w) . L.singleton) . SL.rotateR $ imap IntMap.! bvInstId input
-            _ -> SL.map (makePrim1 prim) . SL.transposeLS $ map ((imap IntMap.!) . bvInstId) inputs
-        ) : map (\x -> aux x (IntSet.insert instId iset) imap) inputs
+unrollS :: forall a b n. (Bits a, Bits b, KnownNat (SizeOf a), KnownNat n) => (a -> b) -> (SVec.SVec n a -> SVec.SVec n b)
+unrollS circ = SVec.fromSList . unrollSList circ . SVec.toSList
 
 ifZero :: forall n a. KnownNat n => (n ~ 0 => a) -> (1 <= n => a) -> a
 ifZero a b = case (cmpNat @0 @n Proxy Proxy, cmpNat @1 @n Proxy Proxy) of

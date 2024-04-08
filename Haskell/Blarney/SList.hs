@@ -12,45 +12,50 @@
 {-|
 Module      : Blarney.SList
 Description : Sized lists
+Copyright   : (c) Victor Miquel, 2024
+License     : MIT
 
 Lists with type-checked lengths
 -}
 
 module Blarney.SList (
-  Blarney.SList.SList (..)
+  Blarney.SList.SList(..),
 
-, Blarney.SList.fromList
-, Blarney.SList.toList
+  Blarney.SList.fromList,
+  Blarney.SList.toList,
 
-, Blarney.SList.lazyShape
-, Blarney.SList.forceCast
-, Blarney.SList.replicate
-, Blarney.SList.singleton
-, Blarney.SList.append
-, Blarney.SList.select
-, Blarney.SList.split
-, Blarney.SList.update
-, Blarney.SList.head
-, Blarney.SList.last
-, Blarney.SList.tail
-, Blarney.SList.init
-, Blarney.SList.uncons
-, Blarney.SList.take
-, Blarney.SList.drop
-, Blarney.SList.rotateL
-, Blarney.SList.rotateR
-, Blarney.SList.reverse
-, Blarney.SList.zip
-, Blarney.SList.unzip
-, Blarney.SList.map
-, Blarney.SList.foldr
-, Blarney.SList.transpose
-, Blarney.SList.transposeLS
-, Blarney.SList.transposeSL
+  Blarney.SList.lazyShape,
+  Blarney.SList.forceCast,
+  Blarney.SList.replicate,
+  Blarney.SList.iterate,
+  Blarney.SList.singleton,
+  Blarney.SList.append,
+  Blarney.SList.select,
+  Blarney.SList.split,
+  Blarney.SList.update,
+  Blarney.SList.head,
+  Blarney.SList.last,
+  Blarney.SList.tail,
+  Blarney.SList.init,
+  Blarney.SList.uncons,
+  Blarney.SList.take,
+  Blarney.SList.drop,
+  Blarney.SList.rotateL,
+  Blarney.SList.rotateR,
+  Blarney.SList.reverse,
+  Blarney.SList.zip,
+  Blarney.SList.unzip,
+  Blarney.SList.map,
+  Blarney.SList.zipWith,
+  Blarney.SList.foldr,
+  Blarney.SList.foldr1,
+  Blarney.SList.transpose,
+  Blarney.SList.transposeLS,
+  Blarney.SList.transposeSL,
 ) where
 
 import qualified Prelude
-import Prelude (undefined, error, Maybe(..), ($), (.), (<*>))
+import Prelude (undefined, error, Maybe(..), ($), (.), (<*>), curry, uncurry)
 import GHC.TypeLits
 import Data.Proxy
 import qualified Data.List as L
@@ -105,6 +110,9 @@ forceCast xs = ifEq @n @m xs (error "sizes don't match")
 replicate :: forall n a. KnownNat n => a -> SList n a
 replicate x = ifZero @n Nil (Cons x (replicate @(n-1) x))
 
+iterate :: forall n a. KnownNat n => (a -> a) -> a -> SList n a
+iterate f x = ifZero @n Nil (Cons x (iterate @(n-1) f (f x)))
+
 singleton :: a -> SList 1 a
 singleton x = Cons x Nil
 
@@ -115,7 +123,7 @@ select :: forall i n a. (KnownNat i, KnownNat n, (i+1) <= n) => SList n a -> a
 select xs = ifZero @n undefined (let (Cons y ys) = xs in ifZero @i y (select @(i-1) ys))
 
 split :: forall n n0 n1 a. (KnownNat n, KnownNat n0, KnownNat n1, n1 ~ (n-n0), n0 <= n) => SList n a -> (SList n0 a, SList n1 a)
-split xs = ifZero @n0 (Nil, xs) ((let (Cons h t) = xs in let (as, bs) = split @(n-1) @(n0-1) @n1 t in (Cons h as, bs)) :: (1 <= n) => (SList n0 a, SList n1 a))
+split xss = ifZero @n0 (Nil, xss) ((let (Cons x xs) = xss in let (as, bs) = split @(n-1) @(n0-1) @n1 xs in (Cons x as, bs)) :: (1 <= n) => (SList n0 a, SList n1 a))
 
 update :: forall i n a. (KnownNat i, (i+1) <= n, 1 <= n) => (a -> a) -> SList n a -> SList n a
 update f (Cons x xs) = ifZero @i (Cons (f x) xs) (Cons x (update @(i-1) f xs))
@@ -136,7 +144,7 @@ uncons :: (1 <= n) => SList n a -> (a, SList (n-1) a)
 uncons xs = (head xs, tail xs)
 
 take :: forall i n a. (KnownNat i, i <= n) => SList n a -> SList i a
-take xs = ifZero @i Nil ((let (Cons h t) = xs in Cons h (take @(i-1) t)) :: (1 <= n) => SList i a)
+take xss = ifZero @i Nil ((let (Cons x xs) = xss in Cons x (take @(i-1) xs)) :: (1 <= n) => SList i a)
 
 drop :: forall n i a. (KnownNat n, KnownNat i, i <= n) => SList n a -> SList (n-i) a
 drop xs = ifZero @(i) xs ((let (Cons _ t) = xs in (drop @(n-1) @(i-1) t :: (i-1 <= n-1) => SList (n-i) a)) :: (1 <= n) => SList (n-i) a)
@@ -162,8 +170,14 @@ unzip xyss = ifZero @n (Nil, Nil) (let (Cons (x, y) xys) = xyss in let (xs, ys) 
 map :: forall n a b. KnownNat n => (a -> b) -> SList n a -> SList n b
 map f xss = ifZero @n Nil (let (Cons x xs) = xss in Cons (f x) (map f xs))
 
+zipWith :: KnownNat n => (a -> b -> c) -> SList n a -> SList n b -> SList n c
+zipWith f xs ys = map (uncurry f) $ zip xs ys
+
 foldr :: forall n a b. KnownNat n => (a -> b -> b) -> b -> SList n a -> b
 foldr f e xss = ifZero @n e (let (Cons x xs) = xss in x `f` foldr f e xs)
+
+foldr1 :: forall n a b. (KnownNat n, 1 <= n) => (a -> a -> a) -> SList n a -> a
+foldr1 f xss = let (Cons x xs) = xss in ifZero @(n-1) x (x `f` foldr1 f xs)
 
 transpose :: forall m n a. (KnownNat n, KnownNat m) => SList m (SList n a) -> SList n (SList m a)
 transpose x = ifZero @n Nil (let (y, ys) = unzip . map (uncons) $ x in Cons y (transpose ys))

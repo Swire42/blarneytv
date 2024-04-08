@@ -1,0 +1,228 @@
+{-# LANGUAGE GADTs                 #-}
+{-# LANGUAGE DataKinds             #-}
+{-# LANGUAGE AllowAmbiguousTypes   #-}
+{-# LANGUAGE NoRebindableSyntax  #-}
+{-# OPTIONS_GHC -fplugin GHC.TypeLits.Normalise       #-}
+{-# OPTIONS_GHC -fplugin GHC.TypeLits.Presburger      #-}
+{-# OPTIONS_GHC -fplugin GHC.TypeLits.Extra.Solver    #-}
+{-# OPTIONS_GHC -fplugin GHC.TypeLits.KnownNat.Solver #-}
+
+{-# LANGUAGE GADTs                 #-}
+{-# LANGUAGE DataKinds             #-}
+{-# LANGUAGE Rank2Types            #-}
+{-# LANGUAGE TypeFamilies          #-}
+{-# LANGUAGE NoStarIsType          #-}
+{-# LANGUAGE TypeOperators         #-}
+{-# LANGUAGE DeriveGeneric         #-}
+{-# LANGUAGE DeriveAnyClass        #-}
+{-# LANGUAGE KindSignatures        #-}
+{-# LANGUAGE RebindableSyntax      #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE TypeApplications      #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE AllowAmbiguousTypes   #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE UndecidableInstances  #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE PartialTypeSignatures #-}
+
+{-|
+Module      : Blarney.SVec
+Description : Spatial vectors
+Copyright   : (c) Victor Miquel, 2024
+License     : MIT
+
+Spatial vectors
+-}
+
+module Blarney.SVec (
+  Blarney.SVec.SVec,
+
+  Blarney.SVec.toSList,
+  Blarney.SVec.fromSList,
+  Blarney.SVec.toList,
+  Blarney.SVec.fromList,
+
+  Blarney.SVec.lazyShape,
+  Blarney.SVec.forceCast,
+  Blarney.SVec.replicate,
+  Blarney.SVec.iterate,
+  Blarney.SVec.singleton,
+  Blarney.SVec.append,
+  Blarney.SVec.select,
+  Blarney.SVec.split,
+  Blarney.SVec.update,
+  Blarney.SVec.head,
+  Blarney.SVec.last,
+  Blarney.SVec.tail,
+  Blarney.SVec.init,
+  Blarney.SVec.uncons,
+  Blarney.SVec.take,
+  Blarney.SVec.drop,
+  Blarney.SVec.rotateL,
+  Blarney.SVec.rotateR,
+  Blarney.SVec.reverse,
+  Blarney.SVec.zip,
+  Blarney.SVec.unzip,
+  Blarney.SVec.map,
+  Blarney.SVec.zipWith,
+  Blarney.SVec.foldr,
+  Blarney.SVec.foldr1,
+  Blarney.SVec.transpose,
+  Blarney.SVec.transposeLV,
+  Blarney.SVec.transposeVL,
+  Blarney.SVec.transposeBitV,
+  Blarney.SVec.transposeVBit,
+) where
+
+import Prelude
+import qualified Data.List as L
+import Control.Arrow ((***), (&&&), first, second)
+
+import GHC.TypeLits
+
+import qualified Blarney.SList as SList
+import Blarney.Core.BV
+import Blarney.Core.Bit
+import Blarney.Core.Bits
+import Blarney.Core.Interface
+
+data SVec (n :: Nat) a = SVec { toSList :: SList.SList n a }
+
+fromSList :: SList.SList n a -> SVec n a
+fromSList = SVec
+
+toList :: KnownNat n => SVec n a -> [a]
+toList = SList.toList . toSList
+
+fromList :: KnownNat n => [a] -> SVec n a
+fromList = fromSList . SList.fromList
+
+instance (KnownNat n, Bits a) => Bits (SVec n a) where
+  type SizeOf (SVec n a) = n * SizeOf a
+
+  sizeOf :: SVec n a -> Int
+  sizeOf xs = valueOf @n * sizeOf (error "sizeOf: _|_ " :: a)
+
+  pack :: SVec n a -> Bit (SizeOf (SVec n a))
+  pack x
+    | null xs = FromBV $ constBV 0 0
+    | otherwise = FromBV $ L.foldr1 concatBV $
+                    fmap toBV $ fmap pack $ L.reverse xs
+    where xs = toList x
+
+  unpack :: Bit (SizeOf (SVec n a)) -> SVec n a
+  unpack x = fromList xs
+    where
+      len = valueOf @n
+      xs  = [ let bits = unsafeSlice ((w*i)-1, w*(i-1)) x
+                  elem = unpack bits
+                  w    = sizeOf elem
+              in elem
+            | i <- [1..len] ]
+
+  nameBits :: String -> SVec n a -> SVec n a
+  nameBits nm = fromSList . SList.map (\(i, b) -> nameBits (nm ++ "_vec_" ++ show i) b) . SList.zip (SList.iterate (+1) 0) . toSList
+
+instance (KnownNat n, Interface a) => Interface (SVec n a) where
+  toIfc vec = (tm, ty)
+    where
+      tm = encode (valueOf @n) (toList vec)
+      ty = L.foldr IfcTypeProduct IfcTypeUnit (L.replicate (valueOf @n) t)
+      t = IfcTypeField portEmpty (toIfcType (undefined :: a))
+      encode 0 _ = IfcTermUnit
+      encode i ~(x:xs) = IfcTermProduct (toIfcTerm x) (encode (i-1) xs)
+  fromIfc term = fromList $ decode (valueOf @n) term
+    where
+      decode 0 _ = []
+      decode i ~(IfcTermProduct x0 x1) = fromIfcTerm x0 : decode (i-1) x1
+
+lazyShape :: forall n a. KnownNat n => SVec n a -> SVec n a
+lazyShape = fromSList . SList.lazyShape . toSList
+
+forceCast :: forall n m a. (KnownNat n, KnownNat m) => SVec m a -> SVec n a
+forceCast = fromSList . SList.forceCast . toSList
+
+replicate :: forall n a. KnownNat n => a -> SVec n a
+replicate = fromSList . SList.replicate
+
+iterate :: forall n a. KnownNat n => (a -> a) -> a -> SVec n a
+iterate f = fromSList . SList.iterate f
+
+singleton :: a -> SVec 1 a
+singleton = fromSList . SList.singleton
+
+append :: forall n m a. KnownNat n => SVec n a -> SVec m a -> SVec (n+m) a
+append = curry $ fromSList . uncurry SList.append . (toSList *** toSList)
+
+select :: forall i n a. (KnownNat i, KnownNat n, (i+1) <= n) => SVec n a -> a
+select = SList.select @i @n . toSList
+
+split :: forall n n0 n1 a. (KnownNat n, KnownNat n0, KnownNat n1, n1 ~ (n-n0), n0 <= n) => SVec n a -> (SVec n0 a, SVec n1 a)
+split = (fromSList *** fromSList) . SList.split . toSList
+
+update :: forall i n a. (KnownNat i, (i+1) <= n, 1 <= n) => (a -> a) -> SVec n a -> SVec n a
+update f = fromSList . SList.update @i @n f . toSList
+
+head :: (1 <= n) => SVec n a -> a
+head = SList.head . toSList
+
+last :: forall n a. (KnownNat n, 1 <= n) => SVec n a -> a
+last = SList.last . toSList
+
+tail :: (1 <= n) => SVec n a -> SVec (n-1) a
+tail = fromSList . SList.tail . toSList
+
+init :: forall n a. (KnownNat n, 1 <= n) => SVec n a -> SVec (n-1) a
+init = fromSList . SList.init . toSList
+
+uncons :: (1 <= n) => SVec n a -> (a, SVec (n-1) a)
+uncons = second fromSList . SList.uncons . toSList
+
+take :: forall i n a. (KnownNat i, i <= n) => SVec n a -> SVec i a
+take = fromSList . SList.take . toSList
+
+drop :: forall n i a. (KnownNat n, KnownNat i, i <= n) => SVec n a -> SVec (n-i) a
+drop = fromSList . SList.drop . toSList
+
+rotateL :: forall n a. (KnownNat n, 1 <= n) => SVec n a -> SVec n a
+rotateL = fromSList . SList.rotateL . toSList
+
+rotateR :: forall n a. (KnownNat n, 1 <= n) => SVec n a -> SVec n a
+rotateR = fromSList . SList.rotateR . toSList
+
+reverse :: KnownNat n => SVec n a -> SVec n a
+reverse = fromSList . SList.reverse . toSList
+
+zip :: forall n a b. KnownNat n => SVec n a -> SVec n b -> SVec n (a, b)
+zip = curry $ fromSList . uncurry SList.zip . (toSList *** toSList)
+
+unzip :: forall n a b. KnownNat n => SVec n (a, b) -> (SVec n a, SVec n b)
+unzip = (fromSList *** fromSList) . SList.unzip . toSList
+
+map :: forall n a b. KnownNat n => (a -> b) -> SVec n a -> SVec n b
+map f = fromSList . SList.map f . toSList
+
+zipWith :: KnownNat n => (a -> b -> c) -> SVec n a -> SVec n b -> SVec n c
+zipWith f = curry $ fromSList . uncurry (SList.zipWith f) . (toSList *** toSList)
+
+foldr :: forall n a b. KnownNat n => (a -> b -> b) -> b -> SVec n a -> b
+foldr f e = SList.foldr f e . toSList
+
+foldr1 :: forall n a b. (KnownNat n, 1 <= n) => (a -> a -> a) -> SVec n a -> a
+foldr1 f = SList.foldr1 f . toSList
+
+transpose :: forall m n a. (KnownNat n, KnownNat m) => SVec m (SVec n a) -> SVec n (SVec m a)
+transpose = fromSList . SList.map fromSList . SList.transpose . SList.map toSList . toSList
+
+transposeLV :: forall n a. KnownNat n => [SVec n a] -> SVec n [a]
+transposeLV = fromSList . SList.transposeLS . L.map toSList
+
+transposeVL :: forall n a. KnownNat n => SVec n [a] -> [SVec n a]
+transposeVL = L.map fromSList . SList.transposeSL . toSList
+
+transposeBitV :: forall n a. KnownNat n => Bit n -> SVec n (Bit 1)
+transposeBitV = fromList . toBitList
+
+transposeVBit :: forall n a. KnownNat n => SVec n (Bit 1) -> Bit n
+transposeVBit = fromBitList . toList
