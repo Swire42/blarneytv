@@ -81,7 +81,7 @@ unrollList circ inps@(inp:_) =
       transpose' n [] = replicate n []
       transpose' n as = L.transpose as
 
-unrollSList :: forall a b n. (Bits a, Bits b, KnownNat (SizeOf a), KnownNat n) => (a -> b) -> (Slist.SList n a -> Slist.SList n b)
+unrollSList :: forall n a b. (Bits a, Bits b, KnownNat (SizeOf a), KnownNat n) => (a -> b) -> (Slist.SList n a -> Slist.SList n b)
 unrollSList circ inps = ifZero @n Slist.Nil (Slist.map (unpack . FromBV) . (IntMap.! rootID) . fix $ aux rootBV IntSet.empty)
  where
   symb = "#retime#"
@@ -102,7 +102,7 @@ unrollSList circ inps = ifZero @n Slist.Nil (Slist.map (unpack . FromBV) . (IntM
             _ -> Slist.map (makePrim1 prim) . itranspose $ map ((imap IntMap.!) . bvInstId) inputs
         ) : map (\x -> aux x (IntSet.insert instId iset) imap) inputs
 
-unrollS :: forall a b n. (Bits a, Bits b, KnownNat (SizeOf a), KnownNat n) => (a -> b) -> (SVec.SVec n a -> SVec.SVec n b)
+unrollS :: forall n a b. (Bits a, Bits b, KnownNat (SizeOf a), KnownNat n) => (a -> b) -> (SVec.SVec n a -> SVec.SVec n b)
 unrollS circ = SVec.fromSList . unrollSList circ . SVec.toSList
 
 ifZero :: forall n a. KnownNat n => (n ~ 0 => a) -> (1 <= n => a) -> a
