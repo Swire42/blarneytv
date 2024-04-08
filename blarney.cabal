@@ -49,6 +49,7 @@ library
     Blarney.Stream
     Blarney.TaggedUnion
     Blarney.TypeFamilies
+    Blarney.ITranspose
     Blarney.SList
     Blarney.SVec
     Blarney.Retime

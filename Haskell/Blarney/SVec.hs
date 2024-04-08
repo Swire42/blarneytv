@@ -50,11 +50,6 @@ module Blarney.SVec (
   Blarney.SVec.zipWith,
   Blarney.SVec.foldr,
   Blarney.SVec.foldr1,
-  Blarney.SVec.transpose,
-  Blarney.SVec.transposeLV,
-  Blarney.SVec.transposeVL,
-  Blarney.SVec.transposeBitV,
-  Blarney.SVec.transposeVBit,
 ) where
 
 import Prelude
@@ -68,6 +63,7 @@ import Blarney.Core.BV
 import Blarney.Core.Bit
 import Blarney.Core.Bits
 import Blarney.Core.Interface
+import Blarney.ITranspose
 
 data SVec (n :: Nat) a = SVec { toSList :: SList.SList n a }
 
@@ -194,17 +190,17 @@ foldr f e = SList.foldr f e . toSList
 foldr1 :: forall n a b. (KnownNat n, 1 <= n) => (a -> a -> a) -> SVec n a -> a
 foldr1 f = SList.foldr1 f . toSList
 
-transpose :: forall m n a. (KnownNat n, KnownNat m) => SVec m (SVec n a) -> SVec n (SVec m a)
-transpose = fromSList . SList.map fromSList . SList.transpose . SList.map toSList . toSList
+instance (KnownNat n, KnownNat m) => ITranspose (SVec m (SVec n a)) (SVec n (SVec m a)) where
+  itranspose = fromSList . SList.map fromSList . itranspose . SList.map toSList . toSList
 
-transposeLV :: forall n a. KnownNat n => [SVec n a] -> SVec n [a]
-transposeLV = fromSList . SList.transposeLS . L.map toSList
+instance KnownNat n => ITranspose [SVec n a] (SVec n [a]) where
+  itranspose = fromSList . itranspose . L.map toSList
 
-transposeVL :: forall n a. KnownNat n => SVec n [a] -> [SVec n a]
-transposeVL = L.map fromSList . SList.transposeSL . toSList
+instance KnownNat n => ITranspose (SVec n [a]) [SVec n a] where
+  itranspose = L.map fromSList . itranspose . toSList
 
-transposeBitV :: forall n a. KnownNat n => Bit n -> SVec n (Bit 1)
-transposeBitV = fromList . toBitList
+instance KnownNat n => ITranspose (Bit n) (SVec n (Bit 1)) where
+  itranspose = fromList . toBitList
 
-transposeVBit :: forall n a. KnownNat n => SVec n (Bit 1) -> Bit n
-transposeVBit = fromBitList . toList
+instance KnownNat n => ITranspose (SVec n (Bit 1)) (Bit n) where
+  itranspose = fromBitList . toList

@@ -23,6 +23,7 @@ import qualified Blarney.SVec as SVec
 -- Utils
 import Blarney.Core.Prim
 import Blarney.Core.Utils
+import Blarney.ITranspose
 
 -- Standard imports
 import Prelude
@@ -98,7 +99,7 @@ unrollSList circ inps = ifZero @n Slist.Nil (Slist.map (unpack . FromBV) . (IntM
             Register initVal w ->
               let [input] = inputs in
               Slist.update @0 (makePrim1 (Register initVal w) . L.singleton) . Slist.rotateR $ imap IntMap.! bvInstId input
-            _ -> Slist.map (makePrim1 prim) . Slist.transposeLS $ map ((imap IntMap.!) . bvInstId) inputs
+            _ -> Slist.map (makePrim1 prim) . itranspose $ map ((imap IntMap.!) . bvInstId) inputs
         ) : map (\x -> aux x (IntSet.insert instId iset) imap) inputs
 
 unrollS :: forall a b n. (Bits a, Bits b, KnownNat (SizeOf a), KnownNat n) => (a -> b) -> (SVec.SVec n a -> SVec.SVec n b)

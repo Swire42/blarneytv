@@ -49,9 +49,6 @@ module Blarney.SList (
   Blarney.SList.zipWith,
   Blarney.SList.foldr,
   Blarney.SList.foldr1,
-  Blarney.SList.transpose,
-  Blarney.SList.transposeLS,
-  Blarney.SList.transposeSL,
 ) where
 
 import qualified Prelude
@@ -59,6 +56,8 @@ import Prelude (undefined, error, Maybe(..), ($), (.), (<*>), curry, uncurry)
 import GHC.TypeLits
 import Data.Proxy
 import qualified Data.List as L
+
+import Blarney.ITranspose
 
 data SList (n :: Nat) a where
   Nil :: (n ~ 0) => SList n a
@@ -179,13 +178,16 @@ foldr f e xss = ifZero @n e (let (Cons x xs) = xss in x `f` foldr f e xs)
 foldr1 :: forall n a b. (KnownNat n, 1 <= n) => (a -> a -> a) -> SList n a -> a
 foldr1 f xss = let (Cons x xs) = xss in ifZero @(n-1) x (x `f` foldr1 f xs)
 
-transpose :: forall m n a. (KnownNat n, KnownNat m) => SList m (SList n a) -> SList n (SList m a)
-transpose x = ifZero @n Nil (let (y, ys) = unzip . map (uncons) $ x in Cons y (transpose ys))
+instance (KnownNat n, KnownNat m) => ITranspose (SList m (SList n a)) (SList n (SList m a)) where
+  itranspose :: forall m n a. (KnownNat n, KnownNat m) => SList m (SList n a) -> SList n (SList m a)
+  itranspose x = ifZero @n Nil (let (y, ys) = unzip . map (uncons) $ x in Cons y (itranspose ys))
 
-transposeLS :: forall n a. KnownNat n => [SList n a] -> SList n [a]
-transposeLS x = ifZero @n Nil (let (y, ys) = L.unzip . L.map (uncons) $ x in Cons y (transposeLS ys))
+instance KnownNat n => ITranspose [SList n a] (SList n [a]) where
+  itranspose :: forall n a. KnownNat n => [SList n a] -> SList n [a]
+  itranspose x = ifZero @n Nil (let (y, ys) = L.unzip . L.map (uncons) $ x in Cons y (itranspose ys))
 
-transposeSL :: forall n a. KnownNat n => SList n [a] -> [SList n a]
-transposeSL x = case Prelude.fmap unzip . Prelude.mapM (L.uncons) $ x of
-  Just (y, ys) -> y : transposeSL ys
-  Nothing -> []
+instance KnownNat n => ITranspose (SList n [a]) [SList n a] where
+  itranspose :: forall n a. KnownNat n => SList n [a] -> [SList n a]
+  itranspose x = case Prelude.fmap unzip . Prelude.mapM (L.uncons) $ x of
+    Just (y, ys) -> y : itranspose ys
+    Nothing -> []
