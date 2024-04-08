@@ -52,6 +52,7 @@ library
     Blarney.ITranspose
     Blarney.SList
     Blarney.SVec
+    Blarney.TVec
     Blarney.Retime
   other-modules:
     Blarney.Backend

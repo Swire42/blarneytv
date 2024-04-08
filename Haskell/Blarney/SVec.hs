@@ -27,6 +27,7 @@ module Blarney.SVec (
 
   Blarney.SVec.lazyShape,
   Blarney.SVec.forceCast,
+
   Blarney.SVec.replicate,
   Blarney.SVec.iterate,
   Blarney.SVec.singleton,
@@ -131,7 +132,7 @@ singleton :: a -> SVec 1 a
 singleton = fromSList . SList.singleton
 
 append :: forall n m a. KnownNat n => SVec n a -> SVec m a -> SVec (n+m) a
-append = curry $ fromSList . uncurry SList.append . (toSList *** toSList)
+append xs ys = fromSList $ SList.append (toSList xs) (toSList ys)
 
 select :: forall i n a. (KnownNat i, KnownNat n, (i+1) <= n) => SVec n a -> a
 select = SList.select @i @n . toSList
@@ -173,7 +174,7 @@ reverse :: KnownNat n => SVec n a -> SVec n a
 reverse = fromSList . SList.reverse . toSList
 
 zip :: forall n a b. KnownNat n => SVec n a -> SVec n b -> SVec n (a, b)
-zip = curry $ fromSList . uncurry SList.zip . (toSList *** toSList)
+zip xs ys = fromSList $ SList.zip (toSList xs) (toSList ys)
 
 unzip :: forall n a b. KnownNat n => SVec n (a, b) -> (SVec n a, SVec n b)
 unzip = (fromSList *** fromSList) . SList.unzip . toSList
@@ -182,7 +183,7 @@ map :: forall n a b. KnownNat n => (a -> b) -> SVec n a -> SVec n b
 map f = fromSList . SList.map f . toSList
 
 zipWith :: KnownNat n => (a -> b -> c) -> SVec n a -> SVec n b -> SVec n c
-zipWith f = curry $ fromSList . uncurry (SList.zipWith f) . (toSList *** toSList)
+zipWith f xs ys = fromSList $ SList.zipWith f (toSList xs) (toSList ys)
 
 foldr :: forall n a b. KnownNat n => (a -> b -> b) -> b -> SVec n a -> b
 foldr f e = SList.foldr f e . toSList
