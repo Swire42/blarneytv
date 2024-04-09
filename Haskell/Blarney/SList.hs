@@ -30,6 +30,8 @@ module Blarney.SList (
   Blarney.SList.iterate,
   Blarney.SList.singleton,
   Blarney.SList.append,
+  Blarney.SList.concat,
+  Blarney.SList.unconcat,
   Blarney.SList.select,
   Blarney.SList.split,
   Blarney.SList.update,
@@ -83,10 +85,10 @@ assertEq x = ifEq @a @b x (error "assert failed")
 
 fromList :: forall n a. KnownNat n => [a] -> SList n a
 fromList [] = ifZero @n Nil (error "list too small")
-fromList (x:xs) = ifZero @n (error "list too large") (Cons x (fromList @(n-1) xs))
+fromList (x:xs) = ifZero @n (error "list too large") (x `Cons` fromList @(n-1) xs)
 
 toList :: forall n a. KnownNat n => SList n a -> [a]
-toList xs = ifZero @n [] (let Cons y ys = xs in y : toList @(n-1) ys)
+toList xs = ifZero @n [] (let y `Cons` ys = xs in y : toList @(n-1) ys)
 
 instance (Prelude.Show [a], KnownNat n) => Prelude.Show (SList n a) where
   show = Prelude.show . toList
@@ -98,55 +100,61 @@ instance KnownNat n => Prelude.Foldable (SList n) where
   foldr = foldr
 
 instance KnownNat n => Prelude.Traversable (SList n) where
-  traverse f xss = ifZero @n (Prelude.pure Nil) (let (Cons x xs) = xss in Prelude.pure Cons <*> f x <*> Prelude.traverse f xs)
+  traverse f xss = ifZero @n (Prelude.pure Nil) (let x `Cons` xs = xss in Prelude.pure Cons <*> f x <*> Prelude.traverse f xs)
 
 lazyShape :: forall n a. KnownNat n => SList n a -> SList n a
-lazyShape xss = ifZero @n Nil (let Cons x xs = xss in Cons x xs)
+lazyShape xss = ifZero @n Nil (let x `Cons` xs = xss in x `Cons` xs)
 
 forceCast :: forall n m a. (KnownNat n, KnownNat m) => SList m a -> SList n a
 forceCast xs = ifEq @n @m xs (error "sizes don't match")
 
 replicate :: forall n a. KnownNat n => a -> SList n a
-replicate x = ifZero @n Nil (Cons x (replicate @(n-1) x))
+replicate x = ifZero @n Nil (x `Cons` replicate @(n-1) x)
 
 iterate :: forall n a. KnownNat n => (a -> a) -> a -> SList n a
-iterate f x = ifZero @n Nil (Cons x (iterate @(n-1) f (f x)))
+iterate f x = ifZero @n Nil (x `Cons` iterate @(n-1) f (f x))
 
 singleton :: a -> SList 1 a
-singleton x = Cons x Nil
+singleton x = x `Cons` Nil
 
 append :: forall n m a. KnownNat n => SList n a -> SList m a -> SList (n+m) a
-append xss ys = ifZero @n ys (let (Cons x xs) = xss in Cons x (append xs ys))
+append xss ys = ifZero @n ys (let x `Cons` xs = xss in x `Cons` append xs ys)
+
+concat :: forall n m a. (KnownNat n, KnownNat m) => SList n (SList m a) -> SList (n*m) a
+concat xss = ifZero @n Nil (let x `Cons` xs = xss in x `append` concat xs)
+
+unconcat :: forall n m a. (KnownNat n, KnownNat m) => SList (n*m) a -> SList n (SList m a)
+unconcat xss = ifZero @n (Nil) (let (x, xs) = split @(n*m) @m xss in x `Cons` unconcat @(n-1) @m xs) 
 
 select :: forall i n a. (KnownNat i, KnownNat n, (i+1) <= n) => SList n a -> a
-select xs = ifZero @n undefined (let (Cons y ys) = xs in ifZero @i y (select @(i-1) ys))
+select xs = ifZero @n undefined (let y `Cons` ys = xs in ifZero @i y (select @(i-1) ys))
 
 split :: forall n n0 n1 a. (KnownNat n, KnownNat n0, KnownNat n1, n1 ~ (n-n0), n0 <= n) => SList n a -> (SList n0 a, SList n1 a)
-split xss = ifZero @n0 (Nil, xss) ((let (Cons x xs) = xss in let (as, bs) = split @(n-1) @(n0-1) @n1 xs in (Cons x as, bs)) :: (1 <= n) => (SList n0 a, SList n1 a))
+split xss = ifZero @n0 (Nil, xss) ((let x `Cons` xs = xss in let (as, bs) = split @(n-1) @(n0-1) @n1 xs in (x `Cons` as, bs)) :: (1 <= n) => (SList n0 a, SList n1 a))
 
 update :: forall i n a. (KnownNat i, (i+1) <= n, 1 <= n) => (a -> a) -> SList n a -> SList n a
-update f (Cons x xs) = ifZero @i (Cons (f x) xs) (Cons x (update @(i-1) f xs))
+update f (x `Cons` xs) = ifZero @i (f x `Cons` xs) (x `Cons` update @(i-1) f xs)
 
 head :: (1 <= n) => SList n a -> a
-head (Cons x _) = x
+head (x `Cons` _) = x
 
 last :: forall n a. (KnownNat n, 1 <= n) => SList n a -> a
-last (Cons x xs) = ifZero @(n-1) x (last xs)
+last (x `Cons` xs) = ifZero @(n-1) x (last xs)
 
 tail :: (1 <= n) => SList n a -> SList (n-1) a
-tail (Cons _ xs) = xs
+tail (_ `Cons` xs) = xs
 
 init :: forall n a. (KnownNat n, 1 <= n) => SList n a -> SList (n-1) a
-init xs = ifZero @(n-1) Nil (let Cons y ys = xs in Cons y (init ys))
+init xs = ifZero @(n-1) Nil (let y `Cons` ys = xs in y `Cons` init ys)
 
 uncons :: (1 <= n) => SList n a -> (a, SList (n-1) a)
 uncons xs = (head xs, tail xs)
 
 take :: forall i n a. (KnownNat i, i <= n) => SList n a -> SList i a
-take xss = ifZero @i Nil ((let (Cons x xs) = xss in Cons x (take @(i-1) xs)) :: (1 <= n) => SList i a)
+take xss = ifZero @i Nil ((let x `Cons` xs = xss in x `Cons` take @(i-1) xs) :: (1 <= n) => SList i a)
 
 drop :: forall n i a. (KnownNat n, KnownNat i, i <= n) => SList n a -> SList (n-i) a
-drop xs = ifZero @(i) xs ((let (Cons _ t) = xs in (drop @(n-1) @(i-1) t :: (i-1 <= n-1) => SList (n-i) a)) :: (1 <= n) => SList (n-i) a)
+drop xs = ifZero @(i) xs ((let _ `Cons` t = xs in (drop @(n-1) @(i-1) t :: (i-1 <= n-1) => SList (n-i) a)) :: (1 <= n) => SList (n-i) a)
 
 rotateL :: forall n a. (KnownNat n, 1 <= n) => SList n a -> SList n a
 rotateL xs = (tail xs) `append` singleton (head xs)
@@ -158,33 +166,33 @@ reverse :: KnownNat n => SList n a -> SList n a
 reverse = aux Nil
   where
     aux :: forall n0 n1 n a. (KnownNat n0, KnownNat n1, n0+n1 ~ n) => SList n0 a -> SList n1 a -> SList n a
-    aux acc xss = ifZero @n1 acc (let (Cons x xs) = xss in aux xs (Cons @(n0+1) x acc))
+    aux acc xss = ifZero @n1 acc (let x `Cons` xs = xss in aux @(n0+1) (x `Cons` acc) xs)
 
 zip :: forall n a b. KnownNat n => SList n a -> SList n b -> SList n (a, b)
-zip xss yss = ifZero @n Nil (let (Cons x xs, Cons y ys) = (xss, yss) in Cons (x, y) (zip xs ys))
+zip xss yss = ifZero @n Nil (let (x `Cons` xs, y `Cons` ys) = (xss, yss) in (x, y) `Cons` zip xs ys)
 
 unzip :: forall n a b. KnownNat n => SList n (a, b) -> (SList n a, SList n b)
-unzip xyss = ifZero @n (Nil, Nil) (let (Cons (x, y) xys) = xyss in let (xs, ys) = unzip xys in (Cons x xs, Cons y ys))
+unzip xyss = ifZero @n (Nil, Nil) (let (x, y) `Cons` xys = xyss in let (xs, ys) = unzip xys in (x `Cons` xs, y `Cons` ys))
 
 map :: forall n a b. KnownNat n => (a -> b) -> SList n a -> SList n b
-map f xss = ifZero @n Nil (let (Cons x xs) = xss in Cons (f x) (map f xs))
+map f xss = ifZero @n Nil (let x `Cons` xs = xss in f x `Cons` map f xs)
 
 zipWith :: KnownNat n => (a -> b -> c) -> SList n a -> SList n b -> SList n c
 zipWith f xs ys = map (uncurry f) $ zip xs ys
 
 foldr :: forall n a b. KnownNat n => (a -> b -> b) -> b -> SList n a -> b
-foldr f e xss = ifZero @n e (let (Cons x xs) = xss in x `f` foldr f e xs)
+foldr f e xss = ifZero @n e (let x `Cons` xs = xss in x `f` foldr f e xs)
 
 foldr1 :: forall n a b. (KnownNat n, 1 <= n) => (a -> a -> a) -> SList n a -> a
-foldr1 f xss = let (Cons x xs) = xss in ifZero @(n-1) x (x `f` foldr1 f xs)
+foldr1 f xss = let x `Cons` xs = xss in ifZero @(n-1) x (x `f` foldr1 f xs)
 
 instance (KnownNat n, KnownNat m) => ITranspose (SList m (SList n a)) (SList n (SList m a)) where
   itranspose :: forall m n a. (KnownNat n, KnownNat m) => SList m (SList n a) -> SList n (SList m a)
-  itranspose x = ifZero @n Nil (let (y, ys) = unzip . map (uncons) $ x in Cons y (itranspose ys))
+  itranspose x = ifZero @n Nil (let (y, ys) = unzip . map (uncons) $ x in y `Cons` itranspose ys)
 
 instance KnownNat n => ITranspose [SList n a] (SList n [a]) where
   itranspose :: forall n a. KnownNat n => [SList n a] -> SList n [a]
-  itranspose x = ifZero @n Nil (let (y, ys) = L.unzip . L.map (uncons) $ x in Cons y (itranspose ys))
+  itranspose x = ifZero @n Nil (let (y, ys) = L.unzip . L.map (uncons) $ x in y `Cons` itranspose ys)
 
 instance KnownNat n => ITranspose (SList n [a]) [SList n a] where
   itranspose :: forall n a. KnownNat n => SList n [a] -> [SList n a]

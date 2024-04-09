@@ -32,6 +32,8 @@ module Blarney.SVec (
   Blarney.SVec.iterate,
   Blarney.SVec.singleton,
   Blarney.SVec.append,
+  Blarney.SVec.concat,
+  Blarney.SVec.unconcat,
   Blarney.SVec.select,
   Blarney.SVec.split,
   Blarney.SVec.update,
@@ -133,6 +135,12 @@ singleton = fromSList . SList.singleton
 
 append :: forall n m a. KnownNat n => SVec n a -> SVec m a -> SVec (n+m) a
 append xs ys = fromSList $ SList.append (toSList xs) (toSList ys)
+
+concat :: forall n m a. (KnownNat n, KnownNat m) => SVec n (SVec m a) -> SVec (n*m) a
+concat = fromSList . SList.concat . SList.map toSList . toSList
+
+unconcat :: forall n m a. (KnownNat n, KnownNat m) => SVec (n*m) a -> SVec n (SVec m a)
+unconcat = fromSList . SList.map fromSList . SList.unconcat . toSList
 
 select :: forall i n a. (KnownNat i, KnownNat n, (i+1) <= n) => SVec n a -> a
 select = SList.select @i @n . toSList
