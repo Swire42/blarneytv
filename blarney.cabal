@@ -53,6 +53,7 @@ library
     Blarney.SList
     Blarney.SVec
     Blarney.TVec
+    Blarney.TVal
     Blarney.Retime
   other-modules:
     Blarney.Backend
