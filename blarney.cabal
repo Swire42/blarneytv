@@ -54,6 +54,9 @@ library
     Blarney.SVec
     Blarney.TVec
     Blarney.TVal
+    Blarney.Batch
+    Blarney.FakeRapid
+    Blarney.Nat
     Blarney.Retime
   other-modules:
     Blarney.Backend

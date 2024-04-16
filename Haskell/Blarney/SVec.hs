@@ -53,6 +53,8 @@ module Blarney.SVec (
   Blarney.SVec.zipWith,
   Blarney.SVec.foldr,
   Blarney.SVec.foldr1,
+
+  Blarney.SVec.unroll,
 ) where
 
 import Prelude
@@ -67,6 +69,7 @@ import Blarney.Core.Bit
 import Blarney.Core.Bits
 import Blarney.Core.Interface
 import Blarney.ITranspose
+import qualified Blarney.Retime as Retime
 
 data SVec (n :: Nat) a = SVec { toSList :: SList.SList n a }
 
@@ -213,3 +216,7 @@ instance KnownNat n => ITranspose (Bit n) (SVec n (Bit 1)) where
 
 instance KnownNat n => ITranspose (SVec n (Bit 1)) (Bit n) where
   itranspose = fromBitList . toList
+
+-- cf Retime
+unroll :: forall n a b. (Bits a, Bits b, KnownNat (SizeOf a), KnownNat n) => (a -> b) -> (SVec n a -> SVec n b)
+unroll f = fromSList . Retime.unroll f . toSList
