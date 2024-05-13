@@ -64,6 +64,7 @@ library
     Blarney.Backend.SMT.BasicDefinitions
     Blarney.Backend.SMT.NetlistUtils
     Blarney.Backend.SMT.Utils
+    Blarney.Backend.NewSMT
     Blarney.Backend.Simulation
     Blarney.Backend.Verilog
     Blarney.Core
@@ -103,6 +104,7 @@ library
       array
     , base
     , containers
+    , async
     , ghc-prim
     , mtl
     , pretty
