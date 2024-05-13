@@ -30,6 +30,7 @@ module Blarney.SVec (
 
   Blarney.SVec.replicate,
   Blarney.SVec.iterate,
+  Blarney.SVec.empty,
   Blarney.SVec.singleton,
   Blarney.SVec.append,
   Blarney.SVec.concat,
@@ -41,6 +42,7 @@ module Blarney.SVec (
   Blarney.SVec.last,
   Blarney.SVec.tail,
   Blarney.SVec.init,
+  Blarney.SVec.cons,
   Blarney.SVec.uncons,
   Blarney.SVec.take,
   Blarney.SVec.drop,
@@ -133,6 +135,9 @@ replicate = fromSList . SList.replicate
 iterate :: forall n a. KnownNat n => (a -> a) -> a -> SVec n a
 iterate f = fromSList . SList.iterate f
 
+empty :: SVec 0 a
+empty = fromSList SList.Nil
+
 singleton :: a -> SVec 1 a
 singleton = fromSList . SList.singleton
 
@@ -165,6 +170,9 @@ tail = fromSList . SList.tail . toSList
 
 init :: forall n a. (KnownNat n, 1 <= n) => SVec n a -> SVec (n-1) a
 init = fromSList . SList.init . toSList
+
+cons :: a -> SVec n a -> SVec (n+1) a
+cons h t = fromSList $ SList.Cons h (toSList t)
 
 uncons :: (1 <= n) => SVec n a -> (a, SVec (n-1) a)
 uncons = second fromSList . SList.uncons . toSList
