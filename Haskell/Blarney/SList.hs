@@ -183,8 +183,14 @@ zipWith f xs ys = map (uncurry f) $ zip xs ys
 foldr :: forall n a b. KnownNat n => (a -> b -> b) -> b -> SList n a -> b
 foldr f e xss = ifZero @n e (let x `Cons` xs = xss in x `f` foldr f e xs)
 
+foldl :: forall n a b. KnownNat n => (b -> a -> b) -> b -> SList n a -> b
+foldl f e xss = ifZero @n e (let x `Cons` xs = xss in foldl f (e `f` x) xs)
+
 foldr1 :: forall n a b. (KnownNat n, 1 <= n) => (a -> a -> a) -> SList n a -> a
 foldr1 f xss = let x `Cons` xs = xss in ifZero @(n-1) x (x `f` foldr1 f xs)
+
+foldl1 :: forall n a b. (KnownNat n, 1 <= n) => (a -> a -> a) -> SList n a -> a
+foldl1 f xss = let x `Cons` xs = xss in foldl f x xs
 
 instance (KnownNat n, KnownNat m) => ITranspose (SList m (SList n a)) (SList n (SList m a)) where
   itranspose :: forall m n a. (KnownNat n, KnownNat m) => SList m (SList n a) -> SList n (SList m a)
