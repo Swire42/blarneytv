@@ -54,7 +54,9 @@ module Blarney.SVec (
   Blarney.SVec.map,
   Blarney.SVec.zipWith,
   Blarney.SVec.foldr,
+  Blarney.SVec.foldl,
   Blarney.SVec.foldr1,
+  Blarney.SVec.foldl1,
 
   Blarney.SVec.unroll,
 ) where
@@ -207,8 +209,14 @@ zipWith f xs ys = fromSList $ SList.zipWith f (toSList xs) (toSList ys)
 foldr :: forall n a b. KnownNat n => (a -> b -> b) -> b -> SVec n a -> b
 foldr f e = SList.foldr f e . toSList
 
+foldl :: forall n a b. KnownNat n => (b -> a -> b) -> b -> SVec n a -> b
+foldl f e = SList.foldl f e . toSList
+
 foldr1 :: forall n a b. (KnownNat n, 1 <= n) => (a -> a -> a) -> SVec n a -> a
 foldr1 f = SList.foldr1 f . toSList
+
+foldl1 :: forall n a b. (KnownNat n, 1 <= n) => (a -> a -> a) -> SVec n a -> a
+foldl1 f = SList.foldl1 f . toSList
 
 instance (KnownNat n, KnownNat m) => ITranspose (SVec m (SVec n a)) (SVec n (SVec m a)) where
   itranspose = fromSList . SList.map fromSList . itranspose . SList.map toSList . toSList

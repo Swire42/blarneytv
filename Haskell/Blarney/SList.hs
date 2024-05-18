@@ -50,7 +50,9 @@ module Blarney.SList (
   Blarney.SList.map,
   Blarney.SList.zipWith,
   Blarney.SList.foldr,
+  Blarney.SList.foldl,
   Blarney.SList.foldr1,
+  Blarney.SList.foldl1,
 ) where
 
 import qualified Prelude
