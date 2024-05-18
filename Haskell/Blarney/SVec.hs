@@ -57,6 +57,8 @@ module Blarney.SVec (
   Blarney.SVec.foldl,
   Blarney.SVec.foldr1,
   Blarney.SVec.foldl1,
+  Blarney.SVec.scanr,
+  Blarney.SVec.scanl,
 
   Blarney.SVec.unroll,
 ) where
@@ -217,6 +219,12 @@ foldr1 f = SList.foldr1 f . toSList
 
 foldl1 :: forall n a b. (KnownNat n, 1 <= n) => (a -> a -> a) -> SVec n a -> a
 foldl1 f = SList.foldl1 f . toSList
+
+scanr :: forall n a b. KnownNat n => (a -> b -> b) -> b -> SVec n a -> SVec n b
+scanr f e = fromSList . SList.scanr f e . toSList
+
+scanl :: forall n a b. KnownNat n => (b -> a -> b) -> b -> SVec n a -> SVec n b
+scanl f e = fromSList . SList.scanl f e . toSList
 
 instance (KnownNat n, KnownNat m) => ITranspose (SVec m (SVec n a)) (SVec n (SVec m a)) where
   itranspose = fromSList . SList.map fromSList . itranspose . SList.map toSList . toSList

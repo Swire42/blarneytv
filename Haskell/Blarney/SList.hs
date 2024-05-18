@@ -53,6 +53,8 @@ module Blarney.SList (
   Blarney.SList.foldl,
   Blarney.SList.foldr1,
   Blarney.SList.foldl1,
+  Blarney.SList.scanr,
+  Blarney.SList.scanl,
 ) where
 
 import qualified Prelude
@@ -193,6 +195,12 @@ foldr1 f xss = let x `Cons` xs = xss in ifZero @(n-1) x (x `f` foldr1 f xs)
 
 foldl1 :: forall n a b. (KnownNat n, 1 <= n) => (a -> a -> a) -> SList n a -> a
 foldl1 f xss = let x `Cons` xs = xss in foldl f x xs
+
+scanr :: forall n a b. KnownNat n => (a -> b -> b) -> b -> SList n a -> SList n b
+scanr f e = reverse . scanl (\b a -> f a b) e . reverse
+
+scanl :: forall n a b. KnownNat n => (b -> a -> b) -> b -> SList n a -> SList n b
+scanl f e xss = ifZero @n Nil (let x `Cons` xs = xss in let y = (e `f` x) in y `Cons` scanl f y xs)
 
 instance (KnownNat n, KnownNat m) => ITranspose (SList m (SList n a)) (SList n (SList m a)) where
   itranspose :: forall m n a. (KnownNat n, KnownNat m) => SList m (SList n a) -> SList n (SList m a)
